@@ -9,7 +9,7 @@ import random
 import scipy.signal
 from scipy import integrate
 import preprocessing
-
+import Plot_toolbox
 
 class EMG_Signal():
     def __init__(self,data,f=1):
@@ -174,3 +174,9 @@ class EMG_Signal():
         for index in EpochSegmentation:
             self.Epoch.append(self.data[:,index[0]:index[1]])
         return self.Epoch
+    
+    def visulize(self,data,ch_name,**kwargs):
+        if data.shape[0] != len(ch_name):
+            raise ValueError ('mismatch between channel number')
+        fig = Plot_toolbox.MultiChannelPlot()        
+        fig.plot(self.freq,data,ch_name,**kwargs)
