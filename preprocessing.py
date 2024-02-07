@@ -230,18 +230,55 @@ class Preprocessing(EMG_Signal):
         
 
 class Outliner_detection(EMG_Signal):
-    def outliner_detection(self,T):
-        epochs = self.segment(t_epoch = T)
+    def outliner_detection(self,**kwargs):
+        epochs = self.Epoch
         relativeLowFreqPower = []
         relativePLIPower = []
         rms = []
         for epoch in epochs:
             freq_Epoch,PSD_Epoch = FeatureExtraction.F_Domain(epoch,self.freq).PSD()
-            relativeLowFreqPower.append(self._relativeLowFreqComponentPower(freq_Epoch,PSD_Epoch))
-            relativePLIPower.append(self._relativePLIPower(freq_Epoch,PSD_Epoch))
+            relativeLowFreqPower.append(self._relativeLowFreqComponentPower(freq_Epoch,PSD_Epoch,**kwargs))
+            relativePLIPower.append(self._relativePLIPower(freq_Epoch,PSD_Epoch,**kwargs))
             rms.append(FeatureExtraction.T_Domain(epoch,self.freq).RMS())
     
-    def _average_feature(data):    
+        self.rLFP = self._average_feature(relativeLowFreqPower)
+        self.rPLIP = self._average_feature(relativePLIPower)
+        self.RMS = self._average_feature(rms)
+    
+    def reference_selection(self):
+        LFP_ref = self._reference_criterion(self.rLFP)
+        PLI_ref = self._reference_criterion(self.rPLIP)
+        self.ref_ch = list(set(LFP_ref) & set(PLI_ref))
+    
+    def threshold_calculation(self,k1,k2):
+        Q_LFP = self.Interquartile_Range([self.rLFP[i] for i in self.ref_ch])
+        Q_PLI = self.Interquartile_Range([self.rPLIP[i] for i in self.ref_ch])
+        thres_LFP = k1*(Q_LFP[1]+1.5*(Q_LFP[2]-Q_LFP[0]))
+        thres_PLI = k2*(Q_PLI[1]+1.5*(Q_PLI[2]-Q_PLI[0]))
+        self.threshold = (thres_LFP,thres_PLI)
+    
+    def _reference_criterion(self,feature):
+        ref_ch = []
+        Q = self.Interquartile_Range(feature)
+        feature_median = Q[1]
+        ir = Q[2] - Q[0]
+        for ch in range(self.n_channel):
+            ch_feature = feature[ch]
+            if np.abs(ch_feature-feature_median)<1.5*ir:
+                ref_ch.append(ch)
+    
+    def Interquartile_Range(self,data):
+        sorted_data = np.sort(data)
+        Q2 = np.median(sorted_data)
+        left_pos = np.where(sorted_data<Q2)[0][-1]
+        right_pos = np.where(sorted_data>Q2)[0][0]
+        left = sorted_data[:left_pos+1] 
+        right = sorted_data[right_pos:]
+        Q1 = np.median(left)
+        Q3 = np.median(right)
+        return (Q1,Q2,Q3)
+
+    def _average_feature(self,data):    
         for i in data:
             if i == data[0]:
                 sum = i
@@ -249,9 +286,8 @@ class Outliner_detection(EMG_Signal):
                 sum = sum + i
         return sum/len(data)
         
-        
-    def _relativeLowFreqComponentPower(freq,Power,max_threshold_freq=500,low_threshold_freq=12):
-        n_ch = freq.shape[0]
+    def _relativeLowFreqComponentPower(self,freq,Power,max_threshold_freq=500,low_threshold_freq=12):
+        n_ch = self.n_channel
         relative_low_freq_power = []
         for ch in range(n_ch):
             f = freq[ch,:]
@@ -267,7 +303,7 @@ class Outliner_detection(EMG_Signal):
         PLI_freq = []
         for i in range(n_harmonics):
             PLI_freq.append(50*(i+1))
-        n_ch = freq.shape[0]
+        n_ch = self.n_channel
         power_PLI = 0
         relativePLIPower = []
         for ch in range(n_ch):
