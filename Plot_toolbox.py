@@ -111,7 +111,7 @@ class MultiplePlot:
         self.nrow = nrow
         self.double_click = None
         self.double_click_index = None
-        plt.subplots_adjust( wspace=ws, hspace=hs)
+        plt.subplots_adjust(wspace=ws, hspace=hs)
         
     def main_plot(self,*arg,**kwargs):
         if 'exist' in kwargs:

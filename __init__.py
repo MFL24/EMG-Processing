@@ -10,34 +10,220 @@ import scipy.signal
 from scipy import integrate
 import preprocessing
 import Plot_toolbox
+from otb_matrices import otb_patch_map
+from ElectrodeMapping import *
 
 class EMG_Signal():
-    def __init__(self,data,f=1):
+    
+    @classmethod
+    def prepare(cls,data,ElectrodeMapping,metadata):
+        
+        '''
+        
+        Croping the initial data into parts representing individual arrays
+        and decode the metadata.
+        
+        Parameters:
+        -----------
+        data : np.ndarray
+        the initial data comprising of different arrays and other sensors
+        ElectrodeMapping : dict
+        map stating the positions of electrode with keys as sensortype
+        metadata : dict
+        containg details of data 
+        
+        Returns:
+        --------
+        tempt_instance : list of EMG_Signal instance
+        every element of tempt_instance is an EMG_Signal instance 
+        established from every single array 
+        
+        '''
+        
+        cls.data = data
+        cls.ElectrodeMapping = ElectrodeMapping
+        cls.metadata = metadata
+        cls._DecodeMetadata()
+        cls.ArrayIndex = []
+        ArrayNumber = 1
+        tempt_metadata = []
+        
+        for i in range(data.shape[0]):
+            if cls.get_arrayNum(i) == 0:
+                cls.ArrayIndex.append(i)        
+                break
+            elif cls.get_arrayNum(i) == ArrayNumber:
+                tempt_M = {}
+                cls.ArrayIndex.append(i)
+                tempt_M['muscle'] = cls.get_muscle(i)
+                tempt_M['sensor'] = cls.get_sensor(i)
+                tempt_M['arrayNum'] = ArrayNumber
+                tempt_M['emap'] = cls.ElectrodeMapping[tempt_M['sensor']]["ElChannelMap"]
+                tempt_M['fs'] = cls.get_fsamp(i)
+                ArrayNumber += 1
+                tempt_metadata.append(tempt_M)
+
+        tempt_data = []
+        for j in range(len(cls.ArrayIndex)):
+            if j+1 < len(cls.ArrayIndex):
+                tempt_data.append(cls.data[cls.ArrayIndex[j]:cls.ArrayIndex[j+1]])
+            else: 
+                continue
+            
+        temtp_Instance = []
+        for index in range(len(tempt_data)):
+            temtp_Instance.append(EMG_Signal(tempt_data[index],tempt_metadata[index]))
+        return temtp_Instance
+
+    @classmethod
+    def _DecodeMetadata(cls):
+        cls.fs = cls.metadata['fsamp'].to_numpy()
+        cls.muscle = cls.metadata['muscle'].to_numpy()
+        cls.LP_filter = cls.metadata['LP_filter'][0]
+        cls.HP_filter = cls.metadata['HP_filter'][0]
+        cls.array_num = cls.metadata['array_num'].to_numpy()
+        tempt = cls.array_num != cls.array_num
+        cls.array_num[tempt] = 0
+        cls.sensor = cls.metadata['sensor'].to_numpy()        
+        cls.rel_index = cls.metadata['rel_index'].to_numpy()    
+    
+    @classmethod
+    def get_arrayNum(cls,ch_num):
+        return cls.array_num[ch_num]
+    
+    @classmethod
+    def get_muscle(cls,ch_num):
+        return cls.muscle[ch_num]
+
+    @classmethod
+    def get_sensor(cls,ch_num):
+        return cls.sensor[ch_num]
+        
+    @classmethod
+    def get_arrayNum(cls,ch_num):
+        return cls.array_num[ch_num]
+    
+    @classmethod
+    def get_relIndex(cls,ch_num):
+        return cls.rel_index[ch_num]
+    
+    @classmethod
+    def get_position(cls,ch_num):
+        sensor = cls.get_sensor(ch_num)
+        if not sensor in cls.sensortype:
+            return 0
+        else:
+            return np.where(cls.ElectrodeMapping[sensor]==cls.get_relIndex(ch_num)+1)[0]   
+    
+    @classmethod
+    def get_fsamp(cls,ch_num):
+        return cls.fs[ch_num]
+    
+         
+    def __init__(self,data,metadata):
         
         '''
 
-        initialize a signal instance
+        initialize an EMG_Signal instance
         
         Parameters:
         -----------
         data: ndarray
         matrix in shape (n_channel,n_sample)
-        f: float
-        sampling frequency of the data, default to 1 Hz 
+        metadata: dict
+        dict with keys as 'sensor', 'muscle', 'arrayNum', 'emap', 'fs',
+        representing details of the data array
         
         '''
         
         self.data = data
-        self.freq = f
+        self.metadata = metadata
+        self.sensortype = self.metadata['sensor']
+        self.muscle = self.metadata['muscle']
+        self.array_num = self.metadata['arrayNum']
+        self.EMap = self.metadata['emap']
+        self.fs = self.metadata['fs']
+        self.ArrayInfo = self.EMap.shape
         try:
-            self.n_channel = data.shape[0]
-            self.n_sample = data.shape[1]
+            self.n_channel = self.data.shape[0]
+            self.n_sample = self.data.shape[1]
         except:
             self.n_channel = 1
-            self.n_sample = data.shape[0]
-        self.totalTime = (self.n_sample-1)/self.freq
+            self.n_sample = self.data.shape[0]
+            
+        self.EPosition()
+        self.Neighbour()
+        self.totalTime = (self.n_sample-1)/self.fs
         self.xTimeAxis = np.linspace(0,self.totalTime,self.n_sample)
         
+    def EPosition(self):
+        self.position = []
+        for ch in range(self.n_channel):
+            self.position.append(self.get_position(ch))
+    
+    def Neighbour(self):
+        self.neighbour = []
+        for ch in range(self.n_channel):
+            self.neighbour.append(self.get_neigbour(ch))
+        
+    def get_position(self,ch_num):
+        tempt = np.where(self.EMap==ch_num+1)
+        return (tempt[0][0],tempt[1][0]) 
+    
+    def get_electrode(self,position):
+        return self.EMap[position]-1
+    
+    def get_neigbour(self,ch_num):
+        max_row , max_col = self.ArrayInfo
+        pos = self.position[ch_num]
+        row , col = pos
+        tempt_dict = {}
+        
+        if col == 0 and row == 0:
+            tempt_dict['Other'] = [self.get_electrode((row+1,col+1))]
+        elif col == 0 and row == max_row-1:
+            tempt_dict['Other'] = [self.get_electrode((row-1,col+1))]    
+        elif col == max_col-1 and row == 0:
+            tempt_dict['Other'] = [self.get_electrode((row+1,col-1))]
+        elif col == max_col-1 and row == max_row-1:
+            tempt_dict['Other'] = [self.get_electrode((row-1,col-1))]
+            
+        if col == 0:
+            tempt_dict['E_W'] = [self.get_electrode((row,col+1))]
+            if row not in [0,max_row-1]:
+                tempt_dict['Other'] = [self.get_electrode((row+1,col+1)),
+                                       self.get_electrode((row-1,col+1))]
+        elif col == max_col-1:
+            tempt_dict['E_W']= [self.get_electrode((row,col-1))]
+            if row not in [0,max_row-1]:
+                tempt_dict['Other'] = [self.get_electrode((row-1,col-1)),
+                                       self.get_electrode((row+1,col-1))]            
+        else:
+            tempt_dict['E_W']= [self.get_electrode((row,col-1)),
+                                self.get_electrode((row,col+1))]
+        if row == 0:
+            tempt_dict['N_S'] = [self.get_electrode((row+1,col))]
+            if col not in [0,max_col-1]:
+                tempt_dict['Other'] = [self.get_electrode((row+1,col-1)),
+                                       self.get_electrode((row+1,col+1))]            
+        elif row == max_row-1:
+            tempt_dict['N_S']= [self.get_electrode((row-1,col))]
+            if col not in [0,max_col-1]:
+                tempt_dict['Other'] = [self.get_electrode((row-1,col-1)),
+                                       self.get_electrode((row-1,col+1))]  
+        else:
+            tempt_dict['N_S']= [self.get_electrode((row-1,col)),
+                                self.get_electrode((row+1,col))]                
+        
+        if not 'Other' in tempt_dict.keys():
+            tempt_dict['Other'] = [self.get_electrode((row+1,col-1)),
+                                   self.get_electrode((row+1,col+1)), 
+                                   self.get_electrode((row-1,col+1)),
+                                   self.get_electrode((row-1,col-1))]
+        return tempt_dict     
+                                  
+                                  
+    
     def zero_mean(self,axis=1):
         
         '''
@@ -87,7 +273,7 @@ class EMG_Signal():
         
     def _spike_generator(self,height,width,position,multiple,**kwarg):
         length = self.n_sample
-        x = np.arange(0,length,1)/self.freq
+        x = np.arange(0,length,1)/self.fs
         Random = False
         if position == 'random':
             Random = True
@@ -161,7 +347,7 @@ class EMG_Signal():
 
     def _segmentDuration(self):
         self.n_Epoch = round(self.totalTime/self.t_Epoch)
-        n_Epoch_sample = round(self.t_Epoch*self.freq)
+        n_Epoch_sample = round(self.t_Epoch*self.fs)
         start = 0
         EpochSegmentation = []
         for i in range(self.n_Epoch):
@@ -179,4 +365,6 @@ class EMG_Signal():
         if data.shape[0] != len(ch_name):
             raise ValueError ('mismatch between channel number')
         fig = Plot_toolbox.MultiChannelPlot()        
-        fig.plot(self.freq,data,ch_name,**kwargs)
+        fig.plot(self.fs,data,ch_name,**kwargs)
+        
+    

@@ -47,13 +47,13 @@ class F_Domain(EMG_Signal):
 
 class T_Domain(EMG_Signal):
     def RMS(self):
-        try:
-            n_channel = self.data.shape[0]
-            n_sample = self.data.shape[1]
-        except:
-            n_channel = 1
-            n_sample = self.data.shape[0]    
+        # try:
+        #     n_channel = self.data.shape[0]
+        #     n_sample = self.data.shape[1]
+        # except:
+        #     n_channel = 1
+        #     n_sample = self.data.shape[0]    
         rms = []   
-        for i in range(n_channel):
-            rms.append(np.sqrt(np.sum(self.data[i,:]**2)/n_sample))
+        for i in range(self.n_channel):
+            rms.append(np.sqrt(np.sum(self.data[i,:]**2)/self.n_sample))
         return np.array(rms) 

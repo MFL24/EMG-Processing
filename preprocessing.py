@@ -10,6 +10,9 @@ import scipy.signal
 from scipy import integrate
 from __init__ import * 
 import FeatureExtraction
+from otb_matrices import otb_patch_map
+
+
 
 class FIR_Filter():
     def __init__(self,function):
@@ -318,6 +321,11 @@ class Outliner_detection(EMG_Signal):
                 power_PLI = power_PLI + Power[index]
             relativePLIPower.append(power_PLI/power_full)
         return np.array(relativePLIPower)
+    
+    def _rmsThreshold(self):
+        
+        
+        pass
     
 
 
