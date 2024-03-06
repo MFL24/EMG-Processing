@@ -1,6 +1,6 @@
 import numpy as np
 
-ElectrodeMapping = {
+ElectrodeMappings = {
     "GR10MM0808": {
         "ElChannelMap" : np.array([
             [8,	16,	24,	32,	40,	48,	56,	64], 

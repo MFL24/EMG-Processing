@@ -33,7 +33,7 @@ class F_Domain(EMG_Signal):
         '''
         
         for row in range(self.data.shape[0]):
-            f_tempt,P_tempt = scipy.signal.welch(self.data[row,:],fs=self.freq)
+            f_tempt,P_tempt = scipy.signal.welch(self.data[row,:],fs=self.fs,nperseg=2048)
             if row == 0:
                 f = f_tempt
                 P = P_tempt

@@ -332,7 +332,10 @@ class EMG_Signal():
         period of an epoch in seconds
         n_Epoch : int
         number of epochs to be divided
-         
+        
+        Return:
+        Epoch : list of data array
+        
         '''
         
         if 't_Epoch' in list(kwargs.keys()):
@@ -361,10 +364,28 @@ class EMG_Signal():
             self.Epoch.append(self.data[:,index[0]:index[1]])
         return self.Epoch
     
-    def visulize(self,data,ch_name,**kwargs):
-        if data.shape[0] != len(ch_name):
+    def visulize(self,data,fs,ch_name='default',selected='all',**kwargs):
+        if ch_name == 'default':
+            ch_name = ['{}'.format(i) for i in range(data.shape[0])]
+        else:
+            ch_name = ch_name
+        
+        if selected == 'all':
+            new_data = data
+            new_ch_name = ch_name
+        else:
+            new_ch_name = []
+            for index,i in enumerate(selected):
+                if index == 0:
+                    new_data = data[i,:]
+                else:
+                    new_data = np.concatenate((new_data,data[i,:]),axis=0)
+                new_ch_name.append(ch_name[i])
+            new_data = np.reshape(new_data,(len(selected),-1))
+        
+        if new_data.shape[0] != len(new_ch_name):
             raise ValueError ('mismatch between channel number')
         fig = Plot_toolbox.MultiChannelPlot()        
-        fig.plot(self.fs,data,ch_name,**kwargs)
+        fig.plot(fs,new_data,new_ch_name,**kwargs)
         
     

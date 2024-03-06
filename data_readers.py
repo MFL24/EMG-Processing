@@ -62,8 +62,8 @@ def import_otb(filename: str) -> Tuple[np.ndarray, pd.DataFrame]:
     # Unzip file to temporary directory
     temp_dir = tempfile.TemporaryDirectory()
     temp_path = Path(temp_dir.name)
-    with tarfile.open(filename) as tar:
-        print('Imput file: {}'.format(filename))
+    with tarfile.open(filename,encoding="utf-8") as tar:
+        print('Input file: {}'.format(filename))
         tar.extractall(path=temp_dir.name)
         print('Extracted .otb file in temporary dir!')
 
