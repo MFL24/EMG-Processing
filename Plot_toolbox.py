@@ -356,6 +356,8 @@ class MultiChannelPlot():
         self.dy = (self.data.min()-self.data.max())*0.8
         if 'title' in kwarg:
             self.title = kwarg['title']
+        if 'range' in kwarg:
+            self.range = kwarg['range']
             
         T = 1/freq
         self.x = np.arange(0,data.shape[1])*T 
@@ -373,5 +375,7 @@ class MultiChannelPlot():
         self.ax.set_ylabel(self.ytitle)
         if hasattr(self,'title'):
             self.ax.set_title(self.title)
+        if hasattr(self,'range'):
+            self.ax.set_xlim(self.range[0],self.range[1])
 
 

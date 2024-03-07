@@ -19,15 +19,15 @@ class FIR_Filter():
     def __init__(self,function):
         self.function = function
                 
-    def __call__(self,fp,fs,ripple,type='lowpass'):
+    def __call__(self,fp,fs,f_samp,ripple,type='lowpass'):
         if type == 'lowpass':
             if fs < fp:
                 raise ValueError ('fs smaller than fp')
-            return self._LowPass(fp,fs,ripple)
+            return self._LowPass(fp/f_samp,fs/f_samp,ripple)
         if type == 'highpass':
             if fs > fp:
                 raise ValueError ('fp smaller than fs')
-            return self._HighPass(fp,fs,ripple)
+            return self._HighPass(fp/f_samp,fs/f_samp,ripple)
     
     @property
     def WindowFunc(self):
@@ -65,14 +65,22 @@ class FIR_Filter():
         transitionBandwidth = np.abs(fs-fp)
         if ripple < 25:
             self.order = round(2/transitionBandwidth -1)
+            if self.order % 2 != 0:
+                self.order += 1
             return self._RectWindow()
         elif 24 < ripple < 44:
             self.order = round(4/transitionBandwidth)
+            if self.order % 2 != 0:
+                self.order += 1
             return self._HannWindow()
         elif 43 < ripple < 53:
             self.order = round(4/transitionBandwidth)
+            if self.order % 2 != 0:
+                self.order += 1
             return self._HanningWindow()
         elif 52 < ripple < 74:
+            if self.order % 2 != 0:
+                self.order += 1
             self.order = round(6/transitionBandwidth)
             return self._BlackmannWindow()
         else:
@@ -118,7 +126,7 @@ class FIR_Filter():
         return new_filter
     
     @staticmethod
-    def BodePlot(transfer_func):
+    def BodePlot(transfer_func,fs,**kwargs):
         a = np.fft.rfft(transfer_func)
         norm = np.abs(a)
         norm_log = 20 * np.log10(norm)
@@ -126,8 +134,11 @@ class FIR_Filter():
         freq = np.fft.rfftfreq(len(transfer_func))
         fig = plt.figure()
         ax = fig.add_subplot()
-        ax.plot(freq,norm_log,label='norm')
-        #ax.plot(freq,phase,label='phase')
+        if 'title' in kwargs:
+            ax.set_title(kwargs['title'])
+        ax.plot(freq*fs,norm_log,label='norm')
+        #ax2 = ax.twinx()
+        #ax.plot(freq*fs,phase,label='phase')
         ax.legend()
 
 

@@ -364,7 +364,8 @@ class EMG_Signal():
             self.Epoch.append(self.data[:,index[0]:index[1]])
         return self.Epoch
     
-    def visulize(self,data,fs,ch_name='default',selected='all',**kwargs):
+    @staticmethod
+    def visulize(data,fs,ch_name='default',selected='all',**kwargs):
         if ch_name == 'default':
             ch_name = ['{}'.format(i) for i in range(data.shape[0])]
         else:
