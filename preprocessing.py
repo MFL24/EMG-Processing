@@ -8,7 +8,7 @@ import os
 import random
 import scipy.signal
 from scipy import integrate
-from __init__ import * 
+from EMG import EMG_Signal
 import FeatureExtraction
 from otb_matrices import otb_patch_map
 from matplotlib.patches import Wedge
@@ -51,14 +51,16 @@ class FIR_Filter():
         fc = (fp+fs)/2
         self.WindowFunc = self._getWindow(fp,fs,ripple)
         self.IdealFunc = self._getIdealFilter(fc,type='lowpass')
-        FinalFilter = self.extendFilter(self.WindowFunc*self.IdealFunc)
+        #FinalFilter = self.extendFilter(self.WindowFunc*self.IdealFunc)
+        FinalFilter = self.WindowFunc*self.IdealFunc
         return FinalFilter
     
     def _HighPass(self,fp,fs,ripple):
         fc = (fp+fs)/2
         self.WindowFunc = self._getWindow(fp,fs,ripple)
         self.IdealFunc = self._getIdealFilter(fc,type='highpass')
-        FinalFilter = self.extendFilter(self.WindowFunc*self.IdealFunc)
+        #FinalFilter = self.extendFilter(self.WindowFunc*self.IdealFunc)
+        FinalFilter = self.WindowFunc*self.IdealFunc
         return FinalFilter
         
     def _getWindow(self,fp,fs,ripple):
@@ -79,9 +81,9 @@ class FIR_Filter():
                 self.order += 1
             return self._HanningWindow()
         elif 52 < ripple < 74:
+            self.order = round(6/transitionBandwidth)
             if self.order % 2 != 0:
                 self.order += 1
-            self.order = round(6/transitionBandwidth)
             return self._BlackmannWindow()
         else:
             raise ValueError ('ripple too large')
@@ -139,6 +141,8 @@ class FIR_Filter():
         ax.plot(freq*fs,norm_log,label='norm')
         #ax2 = ax.twinx()
         #ax.plot(freq*fs,phase,label='phase')
+        ax.set_xlabel('freqency (Hz)')
+        ax.set_ylabel('Amplitude (dB)')
         ax.legend()
 
 
@@ -312,10 +316,10 @@ class Outliner_detection(EMG_Signal):
         relativePLIPower = []
         rms = []
         for epoch in epochs:
-            freq_Epoch,PSD_Epoch = FeatureExtraction.F_Domain(epoch,self.metadata).PSD()
+            freq_Epoch,PSD_Epoch = FeatureExtraction.F_Domain(epoch['data'],self.metadata).PSD()
             relativeLowFreqPower.append(self._relativeLowFreqComponentPower(freq_Epoch,PSD_Epoch,**kwargs))
             relativePLIPower.append(self._relativePLIPower(freq_Epoch,PSD_Epoch,**kwargs))
-            rms.append(FeatureExtraction.T_Domain(epoch,self.metadata).RMS())
+            rms.append(FeatureExtraction.T_Domain.RMS(epoch['data'],axis=0))
     
         self.rLFP = self._average_feature(relativeLowFreqPower)
         self.rPLIP = self._average_feature(relativePLIPower)
@@ -446,6 +450,11 @@ class Outliner_detection(EMG_Signal):
             std_Other = self.RMS[neighbour['Other']].std()
             thres_RMS.append(min(mu_EW,mu_NS,mu_Other)+k*max(std_EW,std_NS,std_Other))
         return np.array(thres_RMS)
+    
+    def clip(self):
+        for ch in self.ch_info['bad_ch'][::-1]:
+            self.data = np.delete(self.data,ch,0)
+        return self.data
 
     def OutlinerVisulize(self,**kwargs):
         row = self.ArrayInfo[0]
@@ -661,10 +670,10 @@ class CCA(EMG_Signal):
     
     def reconstruct(self,data,threshold,type='X',criterion='correlation coefficient'):
         if criterion == 'correlation coefficient':
-            if threshold < self.eigenvalues.min():
-                raise ValueError ('Threshold larger than biggest ')
-            self.threshold = threshold
-            self.n_component = np.where(self.eigenvalues>threshold)[0][-1] + 1
+            # if threshold < self.eigenvalues.min():
+            #     raise ValueError ('Threshold larger than biggest ')
+            self.threshold = threshold*self.eigenvalues.max()
+            self.n_component = np.where(self.eigenvalues>self.threshold)[0][-1] + 1
             source = data
             for i in range(self.n_component,data.shape[0]):
                 source[i,:] = np.zeros(data.shape[1])
@@ -675,3 +684,29 @@ class CCA(EMG_Signal):
                 return np.matmul(inv(self.transfirmation_matrix_Y),source)
             else:
                 raise TypeError ('type must be X or Y')
+
+
+class Z_Score_thresholding(EMG_Signal):
+    
+    def __init__(self,data,metadata,T):
+        super().__init__(data,metadata)
+        self.segment(t_Epoch=T)
+        self.bad_epoch_indices = []
+        
+    def apply(self,threshold):
+        bad_epoch = []
+        for index,epoch in enumerate(self.Epoch):
+            zScore = FeatureExtraction.T_Domain.Z_Score(epoch['data'])
+            if zScore.max() > threshold:
+                bad_epoch.append(index)
+                self.bad_epoch_indices.append((epoch['start'],epoch['end']))
+                start = index*self.t_Epoch
+                end = start + self.t_Epoch
+                print('bad epoch detected: {}th epoch from {}s to {}s'.format(index+1,start,end))
+    
+    def clip(self):
+        new_data = self.data.copy()
+        for r in self.bad_epoch_indices[::-1]:
+            new_data = np.delete(new_data,np.arange(r[0],r[1]),1)
+        return new_data
+    

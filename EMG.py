@@ -155,6 +155,11 @@ class EMG_Signal():
         self.Neighbour()
         self.totalTime = (self.n_sample-1)/self.fs
         self.xTimeAxis = np.linspace(0,self.totalTime,self.n_sample)
+        self.ch_info = {'good_ch' : np.arange(self.n_channel),
+                        'bad_ch' : None,
+                        'rLFP' : None,
+                        'rPLIP' : None,
+                        'rms' : None}
         
     def EPosition(self):
         self.position = []
@@ -352,16 +357,22 @@ class EMG_Signal():
         self.n_Epoch = round(self.totalTime/self.t_Epoch)
         n_Epoch_sample = round(self.t_Epoch*self.fs)
         start = 0
-        EpochSegmentation = []
-        for i in range(self.n_Epoch):
-            if start+n_Epoch_sample > self.n_sample:
-                EpochSegmentation.append((start,self.n_sample))
-            else:
-                EpochSegmentation.append((start,start+n_Epoch_sample))
-            start += n_Epoch_sample
         self.Epoch = []
-        for index in EpochSegmentation:
-            self.Epoch.append(self.data[:,index[0]:index[1]])
+        epoch_index = 0
+        for _ in range(self.n_Epoch):
+            tempt_epoch = {}
+            if start+n_Epoch_sample > self.n_sample:
+                tempt_epoch['data'] = self.data[:,start:]
+                tempt_epoch['start'] = start
+                tempt_epoch['end'] = self.n_sample
+                self.Epoch.append(tempt_epoch)
+            else:
+                tempt_epoch['data'] = self.data[:,start:start+n_Epoch_sample]
+                tempt_epoch['start'] = start
+                tempt_epoch['end'] = start+n_Epoch_sample
+                self.Epoch.append(tempt_epoch)
+            start += n_Epoch_sample
+            epoch_index += 1
         return self.Epoch
     
     @staticmethod

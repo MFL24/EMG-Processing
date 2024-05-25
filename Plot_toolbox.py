@@ -353,12 +353,12 @@ class MultiChannelPlot():
         self.ch_name = ch_name
         self.xtitle = xtitle
         self.ytitle = ytitle
-        self.dy = (self.data.min()-self.data.max())*0.8
+        self.dy = (self.data.min()-self.data.max())
         if 'title' in kwarg:
             self.title = kwarg['title']
         if 'range' in kwarg:
             self.range = kwarg['range']
-            
+        self.bad_ch_list = kwarg['bad_channel_list'] if 'bad_channel_list' in kwarg else []
         T = 1/freq
         self.x = np.arange(0,data.shape[1])*T 
         return self._plot()
@@ -370,7 +370,8 @@ class MultiChannelPlot():
         self.ax.set_yticks(yticks, labels=self.ch_name)
 
         for j in range(self.nch):
-            self.ax.plot(self.x,self.data[j,:]+j*self.dy)
+            c = '#C82423' if j in self.bad_ch_list else '#2878B5'
+            self.ax.plot(self.x,self.data[j,:]+j*self.dy,color=c)
         self.ax.set_xlabel(self.xtitle)
         self.ax.set_ylabel(self.ytitle)
         if hasattr(self,'title'):

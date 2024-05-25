@@ -8,7 +8,7 @@ import os
 import random
 import scipy.signal
 from scipy import integrate
-from __init__ import * 
+from EMG import EMG_Signal
 import preprocessing
 
 
@@ -33,7 +33,7 @@ class F_Domain(EMG_Signal):
         '''
         
         for row in range(self.data.shape[0]):
-            f_tempt,P_tempt = scipy.signal.welch(self.data[row,:],fs=self.fs,nperseg=2048)
+            f_tempt,P_tempt = scipy.signal.welch(self.data[row,:],fs=self.fs,nperseg=self.fs)
             if row == 0:
                 f = f_tempt
                 P = P_tempt
@@ -46,14 +46,47 @@ class F_Domain(EMG_Signal):
 
 
 class T_Domain(EMG_Signal):
-    def RMS(self):
-        # try:
-        #     n_channel = self.data.shape[0]
-        #     n_sample = self.data.shape[1]
-        # except:
-        #     n_channel = 1
-        #     n_sample = self.data.shape[0]    
-        rms = []   
-        for i in range(self.n_channel):
-            rms.append(np.sqrt(np.sum(self.data[i,:]**2)/self.n_sample))
-        return np.array(rms) 
+    
+    @staticmethod
+    def RMS(data,mean=False,axis=0):
+        if data.ndim == 1:
+            rms = np.sqrt(np.sum(data**2)/len(data))
+        else:
+            rms = []   
+            for i in range(data.shape[axis]):
+                if axis == 0:
+                    rms.append(T_Domain.RMS(data[i,:]))
+                else:
+                    rms.append(T_Domain.RMS(data[:,i]))
+        return np.mean(rms) if mean else np.array(rms)
+    
+    @staticmethod
+    def Mean_and_Variance(data):
+        if data.ndim == 1:
+            return (np.mean(data),np.std(data))
+        else:
+            mean = []
+            std = []
+            for i in range(data.shape[0]):
+                sig = data[i,:]
+                mean.append(np.mean(sig))
+                std.append(np.std(sig))
+            return (mean,std)
+    
+    @staticmethod
+    def Z_Score(data):
+        mean,std = T_Domain.Mean_and_Variance(data)
+        if data.ndim == 1:
+            zScore = np.zeros(len(data))
+            for i in range(len(data)):
+                zScore[i] = (data[i]-mean)/std
+            return zScore
+        else:
+            zScore = np.zeros(data.shape[1])
+            for row in range(data.shape[0]):
+                sig = data[row,:]
+                zScore = zScore + T_Domain.Z_Score(sig)
+            return zScore/data.shape[0]
+
+                
+                
